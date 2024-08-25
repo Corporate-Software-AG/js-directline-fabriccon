@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <title>Fabric Con Demo Web Chat</title>
+    <!--
+      This styling is for the Web Chat demonstration purposes.
+      It is recommended that style is moved to a separate file for organization in larger projects.
+
+      Please visit https://github.com/microsoft/BotFramework-WebChat for details about Web Chat.
+    -->
+    <style>
+        #fabcon-bot-container {
+            width: calc(100% - 8rem);
+            border: #222 solid 4rem;
+            height: 80vh;
+
+            h1 {
+                color: whitesmoke;
+                font-family: Montserrat, sans-serif;
+                font-size: 16px;
+                line-height: 20px;
+                margin: 0;
+                padding: 0 20px;
+            }
+
+            #banner {
+                text-align: center;
+                align-items: center;
+                background-color: #222;
+                display: flex;
+                height: 3rem;
+            }
+
+            #webchat {
+                bottom: 0;
+                height: calc(80vh - 3rem);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <section id="fabcon-bot-container">
+            <div class="webchat-wrapper">
+                <div id="banner">
+                    <h1>Fabric Con Demo Web Chat</h1>
+                </div>
+                <div id="webchat" role="main"></div>
+            </div>
+        </section>
+    </div>
+
+    <!--
+      In this sample, the latest version of Web Chat is being used.
+      In production environment, the version number should be pinned and version bump should be done frequently.
+
+      Please visit https://github.com/microsoft/BotFramework-WebChat/tree/main/CHANGELOG.md for changelog.
+    -->
+    <script crossorigin="anonymous" src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
+    <script>
+
+        const webchat = document.querySelector('.webchat-wrapper');
+
+        async function loadChat(lang) {
+            // Specifies style options to customize the Web Chat canvas.
+            // Please visit https://microsoft.github.io/BotFramework-WebChat for customization samples.
+
+
+            // Specifies the token endpoint URL.
+            // To get this value, visit Copilot Studio > Settings > Channels > Mobile app page.
+            const tokenEndpointURL = new URL('https://2cceb5e44b95e60e909773010543d1.43.environment.api.powerplatform.com/powervirtualagents/botsbyschema/cr6a6_fabCon24Test/directline/token?api-version=2022-03-01-preview');
+
+            // Specifies the language the copilot and Web Chat should display in:
+            // - (Recommended) To match the page language, set it to document.documentElement.lang
+            // - To use current user language, set it to navigator.language with a fallback language
+            // - To use another language, set it to supported Unicode locale
+
+            // Setting page language is highly recommended.
+            // When page language is set, browsers will use native font for the respective language.
+
+            //const locale = document.documentElement.lang || 'de'; // Uses language specified in <html> element and fallback to English (United States).
+            const locale = lang; // Always use that.
+            // const locale = navigator.language || 'ja-JP'; // Uses user preferred language and fallback to Japanese.
+            // const locale = 'zh-HAnt'; // Always use Chinese (Traditional).
+
+            const apiVersion = tokenEndpointURL.searchParams.get('api-version');
+
+            try {
+                const [directLineURL, token] = await Promise.all([
+                    fetch(new URL(`/powervirtualagents/regionalchannelsettings?api-version=${apiVersion}`, tokenEndpointURL))
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Failed to retrieve regional channel settings.');
+                            }
+                            return response.json();
+                        })
+                        .then(({ channelUrlsById: { directline } }) => directline),
+                    fetch(tokenEndpointURL)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Failed to retrieve Direct Line token.');
+                            }
+                            return response.json();
+                        })
+                        .then(({ token }) => token)
+                ]);
+
+                directLine = WebChat.createDirectLine({ domain: new URL('v3/directline', directLineURL), token });
+
+                let styleOptions = {
+                    // Hide upload button.
+                    hideUploadButton: true,
+                    bubbleMaxWidth: 600,
+                    botAvatarInitials: 'P',
+                    botAvatarImage: 'bot.png',
+                    botAvatarBorderRadius: 0,
+                    botAvatarBackgroundColor: 'transparent',
+                    primaryFont: 'Montserrat, sans-serif',
+                    bubbleBackground: 'whitesmoke',
+                    bubbleFromUserBackground: 'whitesmoke',
+                    bubbleFromUserTextColor: 'black',
+                    bubbleFromUserBorderRadius: 6,
+                    bubbleBorderRadius: 6,
+                };
+
+                const subscription = directLine.connectionStatus$.subscribe({
+                    next(value) {
+                        if (value === 2) {
+                            directLine
+                                .postActivity({
+                                    localTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                                    locale,
+                                    name: 'startConversation',
+                                    type: 'event'
+                                })
+                                .subscribe();
+
+                            subscription.unsubscribe();
+                        }
+                    },
+                    error(error) {
+                        console.error('Connection status subscription failed', error);
+                    }
+                });
+
+                WebChat.renderWebChat({ directLine, locale, styleOptions }, document.getElementById('webchat'));
+                console.log('Web Chat has been rendered');
+            } catch (error) {
+                console.error('Error loading chat:', error);
+            }
+        }
+
+        loadChat('en-US');
+    </script>
+</body>
+
+</html>
